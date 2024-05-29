@@ -1,0 +1,6 @@
+&PROJWFC
+  prefix = 'BTO',
+  outdir = './',
+  ngauss = 0,
+  degauss = 0.01,
+/

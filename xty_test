@@ -1,0 +1,22 @@
+#!/bin/bash
+#SBATCH --job-name=xr19sk
+#SBATCH -D ./
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=32
+#SBATCH -o output.%j
+##SBATCH -e error.%j
+#SBATCH --time="110:00:00"
+#SBATCH --partition=dm_pub_cpu
+
+##SBATCH --gres=gpu:4 #if use gpu, uncomment this
+#export I_MPI_PMI_LIBRARY=/opt/gridview/slurm/lib/libpmi.so
+ulimit -s unlimited
+ulimit -l unlimited
+
+#setup intel oneapi environment 
+source /dm_data/apps/intel/oneapi/setvars.sh
+#source /etc/profile
+module load compiler/latest
+module load mpi/latest
+module load mkl/latest
+mpirun --bind-to core -np 32 /hpc/data/home/spst/zhengfan/open/replace/pw-6.8.x -npool 4 -ndiag 4 < in_os_xre_198_sk  >& out_os_xre_198_sk

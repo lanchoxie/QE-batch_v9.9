@@ -1,0 +1,5 @@
+#flat_number  queue_name  type_flat  ppn_num_defaut
+1  zf_normal  pbs  52
+2  spst_pub  pbs  32
+3  dm_pub_cpu  slurm  32
+4  spst_pub_gpu  pbs  32

@@ -1,0 +1,609 @@
+！！！组合技能：
+python read_relax.py scf
+然后python run-all.py scf pv_result_out,当然对于其他mode也一样
+如果要relax完的进行其他计算，可以在第61行找到for i in not_done:，把not_done改成job_done就行，然后执行上述命令
+！！！溶剂化模型：只要replace.py这里的solvation_mode=1，然后当前目录下创建一个名为environ.in的输入文件
+（https://environ.readthedocs.io/en/latest/input/environ_input.html#idm231）
+
+WARNING:
+1.求最近邻原子数的时候，对Unit Cell尤其是只有5个原子的PV体系，会出现原子漏算问题，所以不要计算元包（这是针对数据提取处理的，计算是正常计算的）
+
+3.atomic_info_extractor.py提取的距离有问题 20240131
+
+修复&优化： 
+1.extract_subgraph_from_db.py 和 predict_from_scratch.py以及 predict_gat*.py 读取子图第一个节点的时候读取方式优化  20240416
+first_node_id = next(iter(converted_subgraphs[ind]))
+graph_name=converted_subgraphs[ind].nodes[first_node_id]['feature'][-1]
+2.replace.py psp_root最后需要加上"/"   20240417
+
+
+新增功能：
+
+
+
+新增脚本：
+
+
+
+
+预计新增：
+
+重要：A.time_schedule.py增加超过一定wall_time cut掉一个结构的能力，并且要删除这个结构
+
+1.如果子目录没有输入文件，自动根据input文件生成相关input(in_pdos和in_Bader可以做到)
+2.time_schedule.py如果子目录没有QE-batch，自动cp QE-batch进入子目录
+3.自动根据子目录下的QE-batch/flat.save/FLAT_INFO 的设置好的平台进行选择性计算，并不打印和不计算不一致的子目录
+4.写个小脚本，自动预生成生成目录文件，省的输入了（在time_schedule.py里面）。这个后续可以写个功能加进去。
+5.发现没有done的或者error的，调整一下in_scf的electronmaxstep，或者replace.py里面的walltime
+6.APP_8结合SPIN和DFT-U
+7.以后可以改一下get_surrounding_by_elements_multi这个脚本，不用他找最近邻化学环境的，或者复制一个副本只找最近邻原子而不关心他们的化学环境
+8.还有以后找最近邻原子可以选择最近邻原子的类型
+9.然后把BaderCharge中的数据分析逻辑一改，变成选择性质进行聚类，就很酷了
+
+10.读取最近临原子数需要改，需要计算出有空位的情况（通过聚类或者判断层数来判断周围最近临的原子数？）。
+11.同时把近邻原子改成不需要cluster的分类标签（或者写个新程序出来，这个老程序在聚类完后新程序运行）
+12.加入一个性质的pearson系数颜色数据图
+13.把cluster分类改成自选性质分类
+
+15.给judge_relax还有judge_scf加一个low bound，超过bound不再修改。
+
+已DONE：
+1.增加relax完的结构的后续计算任务，例如scf,bands,pp等(time_schedule.py可以做到了)。
+2.APP_8的手动输入原子画轨道，APP_8的detail模式下排列优化一下，好看一点（DONE）
+3.还有把八面体体积的数据输出出来。（DONE）
+4.对聚类出来的体系安排单独的数据分析（类似pdos产生两个布局，可以下拉切换）(DONE 2023.10.10)
+5.查找怎么让布局干净一点，比如有个限定框范围。(DONE 2023.10.10)
+6.加入不同版本的qe使用方法，改变job文件每个脚本都重复生成的麻烦，建议新建一个生成job文件的程序。（DONE 2024.3.20）
+
+修复&优化历史：
+1.replace.py solvation model 下qe_dir和ppn_tot搞反的情况
+2.read_qeout_relax.py的读取vc-relax错误问题和读取同时带spin up和spin down的体系的错误问题
+3.run-all.py：修改了运行逻辑，之前是在pv_result_out里面没有跑完的结构全部run-all，现在修改为后续添加进来的结构文件也可以run-all了，这一部分后续添加进来的文件不会被read_relax_E.py系列读取到并且输入pv_result_out,和time_schedule.py的本意不符，故作修改。
+4.APP_7.py和sum_qe_pdos.py的读取out_relax错误问题
+5.APP_8.2.py修复了读取pdos投影轨道数量错误bug
+6.APP_8.4.py优化了detail模式下显示的问题
+7.APP_8.4.py和sum_pdos_qe*优化了不加spin情况下的pdos plot错误问题
+8.replace.py 代码误触导致的错误
+9.APP_9.py:修复了tot pdos没有VB填充的问题，优化了manual mode下第一个数据线条颜色是黑色
+10.sum_qe_pdos_diy.py脚本优化了删去,隔开的原子之间的空格问题
+11.xsf2poscar.py:
+修改了xsf转.vasp的问题，现在可以读取Ni1和Ni2为Ni并且保留原有的index了：
+修改
+#Z = Element(tokens[0]).Z if tokens[0].isalpha() else int(tokens[0])
+为
+Z = Element(''.join([i for i in tokens[0] if not i.isdigit()])).Z
+12.read_relax_E_for_UI.py修复了磁盘爆满导致的异常终止不能被检测，依旧显示running的bug
+13.优化run-all.py，现在可以直接计算没有计算的文件了
+14.APP_9-2.py逻辑优化：不再从out_relax中读取错误的lowdin charge，而是调用新函数read_lowdin.py用于读取out_pdos中的lowdin charge,去读产生的Lowdin_of_{str_name}.txt，并且会对lowdin charge做个scale，使其每个原子的charge=charge in Lowdin_of_{str_name}.txt * total_charge / lowdin_charg_sum
+其中total_charge=赝势中的charge*原子个数
+15.search_data.py {str_name} {字段} {性质} 现在可以在data_read_orientation中添加数据名称， 列数以及读取数据的文件名称，格式如下：
+	data_file=f"{data_dir}/bader_charge_of_{str_name}.data"
+	mag_file=f"{data_dir}/Mag_of_{str_name}.txt"
+	data_read_orientation=[['atom_name',0,data_file],   #[properties_name,column_in_files(start from 0),files]
+               ['bader_charge',2,data_file],
+               ['lowdin_charge',1,data_file],
+               ['bader_charge_change',4,data_file],
+               ['lowdin_charge_change',3,data_file],
+               ['magnetic',5,data_file],
+               ['magnetic1',-1,mag_file],
+               ['magnetic2',-2,mag_file],
+	]
+
+16.修复APP_9-2.py中的话total时候fill fermi填充位置错误问题
+17.read_lowdin.py优化了读取不带spin体系的out_pdos格式
+18.APP_9-2.py优化了计算不带spin体系的magnetic逻辑：现在不会对不带spin的体系使用read_mag.py了，也不会读取magnetic from out_scf/out_relax
+19.优化了search_data.py的逻辑，现在不会找不存在的properties了。
+20.get_surrounding_by_elements_multi.py优化了输出方式，现在可以输出包含周围环境的三列数据了，第一列是Li元素，第二列是TM元素，第三列是O元素,储存在SURROUNDING_ATOMS_of_{str_name}.txt
+21.APP_9-2.py更新了search_data.py props的链接符号，从“-” 到“+”
+22.修复了APP_9-2.py pdos-fill_fermi的填充范围错误
+23.replace.py 对不带磁矩和spin的体系的input优化了删去magnetic以及spin词条
+24.separate_sur_atom_info_lst.py，separate_sur_atom_info.py以及get_surrounding_by_elements_multi.py在生成列表类字符时避免了，导致的csv格式错误，用；和+来替换了，
+25.auto_cal.py修复了不能指定计算mode的问题
+26.clustering-xsf.py在聚类的过程中，初始值现在是1而不是0 了
+27.APP_9.8_Qt5.15.6.py兼容了DM-平台，增加了字体设置。
+28.show_fig优化了输入参数，可以show_fig {str_name} 长 宽了
+29.再次修复了read_qeout_relax.py读取lattice错误的问题
+30.read_relax_E_for_UI.py 优化scf计算不收敛报错问题，读取没有计算结构的问题
+31.check_vc.py 增加了job_limit的功能，可在sub_lim=17里面修改提交上限
+32.atomic_info_extractor.py修改了八面体因子为键长方差 20231205
+33.用gamma点进行replace批量计算的时候，注意要在K_POINTS下面空一行，他会复制K_POINTS下面一行，如果是CELL_PARAMETER就糟了（2024.3.20已优化，现在不需要空一行了。）
+34.优化了脚本文件生成逻辑，现在如果需要改脚本，只需要在create_job_script.py中修改脚本文件内容（例如pw.x版本）。20240320
+	1.1.优化了
+	judge_relax_conv.py
+	judge_scf_conv.py
+	replace.py
+	continue_cal.py
+	中生成脚本文件和获取当前平台的逻辑，现在生成脚本依靠create_job_script.py脚本来执行，并且会返回作业调度系统信息（pbs/slurm)	
+	1.2.优化了
+	job_on_hpc_id.py
+	job_on_hpc.py
+	qdel_all.py
+	这三个脚本会从QE-batch/flat.save/FALT_SAVE下读取队列名称对应的作业调度系统信息（pbs/slurm)	
+35.优化了qdel_all.py，现在可以根据flat.save/FLAT_SAVE自动使用合适的kill脚本命令来可选择的批量取消任务：    20240320
+    >>>python qdel_all.py 1
+36.优化了show_fig.py逻辑，现在如果文件名包含了size_x,size_y的信息形如"name_xSize_ySize.png",可以自动读取size_x,size_y,但是也可以自定义x_size和y_size的尺寸    20240329
+37.main.py更名为create_exchange_str.py   20240407
+38.qe_out2RELAXLOG.py的结构选项新增了xsf_std（是原来的xsf的格式），现在的xsf格式会输出老郑的格式。区别在于比原来的格式少一个CONV VEC以及元素符号从相对原子质量变成了字母，增加-n（--neate）参数，加'-n'参数不会在当前目录生成输出文件，只在目标目录{str_name}下生成，否则不加则会在当前目录和目标目录{str_name}下同时生成  20240407
+39.对judge_relax_conv.py,judge_scf_conv.py,read_relax_E_for_UI.py,continue_cal.py,replace.py中调用bcon.sh的逻辑进行了替换，替换成bcon.py 20240409
+40.优化了replace.py输入屎山的问题，现在可以直接python QE-batch/replace.py xxx.vasp mode了，后面的0 0可加可不加，而且多了一个新的参数-n,加上以后会使得sub_script=0 20240409
+41.优化了replace读取输入文件的问题，如果当前目录下没有输入文件，则会询问是否QE-batch里面copy输入文件 20240409
+42.优化了replace的qe路径和psp路径的参数，可以更加直白的设置了 20240409
+43.优化了create_job_script.py,现在relace.py的qe路径后面有#会被忽略注释内容，其曾经导致了创建job文件的错误 20240409
+44.in_relax默认没有加dipole_corr了 20240409
+45.show_fig.py 优化了show图功能，现在可以show别的目录的图了。 20240409
+46.qe_out2RELAXLOG.py:修复了-a时候把部分后缀000或者111读进去的bug，优化了-a读取的垃圾逻辑问题。优化了非当前目录下的读取逻辑
+47.read_graphs.py最后Predict data输出为train data的bug
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+新增历史：
+1.APP_8.py切换pdos画图模式，有原子模式和轨道模式，新增线条粗细选项，费米面和VB填充开关，以及填充类型
+2.sum_qe_pdos.py 现在可以只画原子的轨道了，例如:Co-1-s 当然也可以画元素轨道：Co
+3.APP_8.2.py增加了自由查看原子pdos的功能
+4.9.APP_9.py:新增badercharge计算以及读取lowdin charge以及magnetization
+5.replace.py 新增BaderCharge计算，并且pdos和badercharge计算都不需要预先设置输入文件了，新增固定原子功能
+6.show_fig.py
+	可以使用plt来画图， 画完以后plt.save('a.png')然后用python show_fig.py a.png来show，但是要pip install PyQt5
+7.clustering-xsf.py读取生成的out_relax_{str_name}.xsf以及bader_charge_of_{str_name}.data以聚类
+	python clustering-xsf.py {str_name} {element} {k} 会生成一个elbow 	rule图以及生成第k个聚类图，会输出第k个聚类的每个聚类的内容以及sum_qe_dos_diy.py可以生成的数据格式，并且会生成.pkl文件在data.save中（第二次读取数据会快很多)
+	这个脚本未来会作分割，一部分读取数据，一部分画图用，并且整合到APP中。
+	其中.pkl文件是二进制文件，支持快速读写，在脚本中的save_data和loaded_data即为读写的dataframe,
+	其中储存了：
+	inertia_values = loaded_data['inertia_values']
+	kmeans_models = loaded_data['kmeans_models']
+	sele_atom = loaded_data[f'sele_atom']
+	max_clusters = loaded_data[f'max_clusters']
+	data = loaded_data[f'data']
+	2023/9/26更新：加入轮廓系数来评判聚类好坏，推荐最佳聚类数
+	2023/9/30 1:01更新：
+8.input_selection.py {str_name} {字段} {字符串}    可以输出你输入的{字段}包含的原子位置，输入格式参考sum_qe_pdos_diy.py
+9.search_data.py {str_name} {字段} {性质}
+	在上面脚本input_selection.py的基础上可以搜索和加和一些数据，注意加和的时候重复数据只会被加和一次，而且目前默认只是bader_charge_of的properties会被搜索，后续可以加入其他的properties
+
+10.search_data.py现在会查找最近邻原子了
+11.APP_9-2.py可以实现对cluster数据的查看了
+12.search_data.py现在会查找最近邻原子和统计数量了，同时增加了一个用于读取文件列标题根据标题来导入数据的功能
+13.APP_9-2.py的badercharge-分析数据增加了计算性质的按钮，用于计算性质并加入到性质框框内，同时对于不存的性质，必要的会标灰，可选的就不显示了。
+14.APP_9-2.py和search_data.py都新增了八面体体积；八面体因子OF；平均角度畸变；畸变因子DI数据的提取
+15.APP_9-2.py增加了计算周围原子情况和计算八面体信息的按钮
+16.APP_9-6.py新增了计算spearman和pearson系数功能，新增了根据聚类画pdos，新增了全选功能，新增了计算系数时候的计算和其他系数的pearson系数功能，新增了排序功能。
+
+17.atomic_info_extractor.py增加了最近了的Ti,Co,Ni,Mn距离的提取 20231122（有问题这个新加的部分）
+18.exchange_E_extractor.py增加了local相关性质的提取：分别是： 20231206
+Ni_on_cross	Co_on_cross	Mn_on_cross	Ti_on_cross	Zr_on_cross	Mg_on_cross	Al_on_cross	TM_X_type	Li-X-TM1-dis	Li-X-TM2-dis	Ni-X-TM1-dis	Ni-X-TM2-dis	TM-TM_bonds_X	mean-Li-XTM	mean-Ni-XTmax-Li-XTM	max-Ni-XTM	min-Li-XTM	min-Ni-XTM	O_X_type	O-O_bonds_X	mean-Li-XO	mean-Ni-XO	max-Li-XO max-Ni-XO	min-Li-XO	min-Ni-XO
+
+19.check_vc.py增加了识别计算次数限制，超过一定计算次数的结构将会不被提交，在max_lim参数设置这个结构限制。需要续算则改变input文件并且把剩下的output文件删去。20240311
+20.APP_9.9_Qt5.15.6.py新增初始化flat.save/FLAT_SAVE文件功能，可以在该文件下自定义所需的平台，同时支持自定义平台信息出现在脚本显示框内，example：                                           
+	#flat_number  queue_name  type_flat  ppn_num_defaut
+	1  zf_normal  pbs  52
+	2  spst_pub  pbs  32
+	3  dm_pub_cpu  slurm  32
+    
+    20240320 
+     
+21.replace支持自动按照晶格的a,b,c计算合适k点，在replace中的k_points_auto_mod参数设为1即可，如果不希望自动计算合适k点，只需要把参数设为0即可  20240320
+
+22.check_vc.py脚本可以在全部计算完毕后发现一些被pause的计算文件，通过调用check_vc_continue_cal.py脚本来修改&electron中的mixing_beta=0.15和conv_thr=1d-8来使得vc-relax收敛。  20240324
+23.库:modify_file.py新增了功能modify_flat，和原来那个差不多，只是原来那个输入文件只能是qe的input（会对输入名加上前缀in_relax_），这个函数的输入文件可以是任意.   20240407
+
+
+
+
+
+
+
+
+##################################################################################################################################
+##################################################################################################################################
+库 库 库 库
+##################################################################################################################################
+##################################################################################################################################
+
+	说明：库的调用需要在开头加上：
+sys.path.append(sys.path[0])
+from libs.modify_file import modify_parameter
+	构建包的时候需要再每个目录下都要构建__init__.py这个空文件
+	
+1.modify_file.py  修改目标文件的内容  
+	#***************************************#
+    #输入的分别是：目标目录，目标文件，参数，参数修改值，参数（如果不存在）添加在哪个句子后面，参数前面需要添加什么
+    #***************************************#
+
+##################################################################################################################################
+##################################################################################################################################
+
+
+
+
+#######auto_cal.py
+帮你自动计算，全部完成了就会已停止运行
+
+#######in_relax
+加了dipole correction
+
+#######replace.py--version-20230703
+新增：
+
+
+往期功能：
+
+2023-9-13
+replace.py
+1.读取不同的spin
+2.新建文件SPIN，DFT-U中可以指定批量脚本的dft+u的值
+
+
+1.relax计算没有收敛的结果继续计算(前提是老郑的bcon.sh在~/bin下)
+2.可支持ATOMIC_SPECIES的自动设置
+3.自动从/hpc/data/home/spst/zhengfan/open复制计算所需的赝势【sp_format="X.SG15.PBE.UPF"】
+4.自动计算原子种类和原子个数（nat以及ntyp）
+5.支持固定底层原子【upper_layer=0.10；down_layer=0.00】
+6.开关fixed atom
+
+20230628
+1.溶剂化模型选项【solvation_model=0】
+2.可自由切换提交平台（只支持zf_normal,spst_pub,dm_pub_cpu）【type_flat="dm_pub_cpu"；node_num=2；wall_time="116:00:00】
+3.可以进行bands计算（记得改成K_POINTS（crystal））
+4.可以自由选择提交文件与否【sub_script=0】
+5.自动计算nbnd（在计算完scf之后）
+6.可以更改qe目录
+7.bands计算，前面几个bands计算忘记加进去了
+8.读取VCA：virtual crystal approximation的原子并利用virtual_v2.x产生赝势且复制
+其中在输入文件中如果要virtual Br 0.4和I 0.6 则应该将原来的原子替换为Br-0.4-I-0.6（并且要在qe的目录下的dft-d3的core.f90里面加入新的赝势的C6值不然不能用dft3）
+
+
+修复:
+1.solvation model 下qe_dir和ppn_tot搞反的情况
+
+
+预计新增：
+1.自动计算nbnd √
+2.自动生成in_file
+3.自动画k-path
+4.自动计算收敛性
+5.自动调整收敛精度让scf收敛
+6.增加加U和加magnetic的方式 √
+
+
+#######read_relax_E.py
+新增：
+1.scf和band的error下的一键续算
+
+
+往期功能：
+1.读取当前目录下能量并储存在pv_result_out generated文件中
+20230421
+1.判断relax是否收敛完成
+2.续算relax（老郑的bcon.sh必须放在bin下）
+3.判断是否被终止kill了，并续算             ***续算时会把out_relax_** 重命名为out_buffer
+4.查找bcon.sh是否在~/bin目录下并自动复制
+5.在后面加上mode就是查找mode的能量，否则就是查找relax的能量，注意bands的话是没有能量的
+6.更改续算的提交平台（注意dm平台不能用太长的walltime，比如116h这种）
+7.relax计算中当下的Total force
+8.删除DONE的文件的波函数，可以在wavefc_rm这个开关打开，波函数名在prefix内修改，和input file的一致
+
+#######run-all.py mode就是把当前目录下的.vasp全部提交了
+新增：
+run-all.py mode pv_result_out 
+把不是done的全部计算一遍
+
+#######read_qe_out_all.py就是读取当前所有文件夹下的文件的输出文件，前提是read_qeout_relax.py（老郑写的）在~/bin/python_script里面
+
+
+#######time_schedule.py
+
+在当前目录下建立几个子目录，子目录下有设置好的input文件和QE-batch文件夹（文件夹名称必须包含“QE-batch”）
+然后在time_schedule.py里面进行设置：
+time_schedule=[[dir1,mode1],[dir2,mode2],...]
+然后运行：python time_schedule.py 就会按照目录的顺序帮忙完成相关计算了，relax没收敛的会帮忙收敛，scf没收敛还不行。
+
+#修复：
+1.time_schedule.py优化了No calculation不计算的bug
+
+
+#######python read_mag.py {dir} {mode}
+python read_mag-normal.py {input} {output}
+读取磁矩用
+
+#######xsf2poscar.py
+放在有xsf文件的目录下使用，vasp文件在vasp_files里面
+
+
+#######sum_qe_pdos_diy.py
+可以读取"Ni1-1-s;(10-19,22)-1-s;Ni1-1-s;(1-9,98)-4-dx2_y2;O-tot;(1-9)-4-dzx;(1-9)-2-px;(1-4)-tot;(1-4)-1-s;(1-4)-2-p;(1-4)-3-s;(1)-4-dxy"任意组合的pdos，会通过‘；’进行分割并且输出在PDOS_OF_INDEX_*文件中
+其中还会创建PDOS_DIY_RESULT用来记录每个pdos文件对应的原子加和的序号以及轨道
+
+#优化：
+1."{}"符号支持元素了，可以用，隔开，例如{N，C}-tot
+2."()"符号也支持元素了，为了和{}格式齐平，但是直接输入元素还是一样的加和，也就是说'(Ni)-tot'和'Ni-tot'作用一样
+3.修复了正则表达读取dx2_y2匹配失败问题
+4.修复了输入的末尾带‘；’导致读取空元素问题
+
+
+sum_qe_pdos_diy_remove_dup.py会判断并删除你输入的重复的原子
+
+其中输入的这些(1-9)-4-dzx字符串会返回存有这些pdos的文件以及应该读取的列数（投影轨道）：
+read! (1-9)-1-s PDOS_OF_INDEX_1 4
+read! (10-19,22)-1-s PDOS_OF_INDEX_2 4
+read! (1-9,98)-4-d PDOS_OF_INDEX_3 10
+read! (37-90)-tot PDOS_OF_INDEX_4 2
+read! (1-9)-4-d PDOS_OF_INDEX_5 6
+read! (1-9)-2-p PDOS_OF_INDEX_6 6
+read! (1-4)-tot PDOS_OF_INDEX_7 2
+read! (1-4)-1-s PDOS_OF_INDEX_8 4
+read! (1-4)-2-p PDOS_OF_INDEX_9 2
+read! (1-4)-3-s PDOS_OF_INDEX_10 4
+read! (1)-4-d PDOS_OF_INDEX_11 12
+当然如果没有的话会进行计算
+
+输入的字符串格式为
+1.（原子序号-原子序号，原子序号）【-用来连接连续的原子，用来隔开不连续的原子】-轨道序号【和QE输出一致】-轨道名称【可以是投影轨道】，
+2.元素符号-轨道序号-轨道名称
+3.（原子序号-原子序号，原子序号）-tot
+4.元素符号-tot
+
+新增：
+*新增"{}"符号
+sum_qe_pdos_diy.py 新增"{}"符号
+>>>python sum_qe_pdos_diy.py "{1-2,9-10,11}-1-s"
+<<<
+[['Ni1', 1, 9], ['Li', 10, 36], ['O', 37, 90], ['Co', 91, 99], ['Ni2', 100, 108]]
+[['Ni1', ['-1-s', '-2-p', '-3-d']], ['Li', ['-1-s', '-2-p']], ['O', ['-1-s', '-2-p']], ['Co', ['-1-s', '-2-p', '-3-d']], ['Ni2', ['-1-s', '-2-p', '-3-d']]]
+['(1)-1-s', '(2)-1-s', '(9)-1-s', '(10)-1-s', '(11)-1-s']
+(1)-1-s 4 5
+(2)-1-s 4 5
+(9)-1-s 4 5
+(10)-1-s 4 5
+(11)-1-s 4 5
+###read! (1)-1-s PDOS_OF_INDEX_6 4 (1)-1-s
+###read! (2)-1-s PDOS_OF_INDEX_7 4 (2)-1-s
+###read! (9)-1-s PDOS_OF_INDEX_20 4 (9)-1-s
+###read! (10)-1-s PDOS_OF_INDEX_21 4 (10)-1-s
+###read! (11)-1-s PDOS_OF_INDEX_22 4 (11)-1-s
+
+输入的字符串格式为
+1.轨道求和：
+1.1.（原子序号-原子序号，原子序号）【-用来连接连续的原子，用来隔开不连续的原子】-轨道序号【和QE输出一致】-轨道名称【可以是投影轨道】，
+1.2.元素符号-轨道序号-轨道名称
+1.3.（原子序号-原子序号，原子序号）-tot
+1.4.元素符号-tot
+*2.分别画出轨道
+*2.1.{原子序号-原子序号，原子序号}【-用来连接连续的原子，用来隔开不连续的原子】-轨道序号【和QE输出一致】-轨道名称【可以是投影轨道】
+
+以下是例子：
+**********************************************************************************************************************************
+>>>python ../QE-batch/sum_qe_pdos_diy.py "{1-2,9-10,11}-1-s;(1-4)-2-p;Ni1-2-p;Co-tot;{1-3}-tot"
+<<<
+[['Ni1', 1, 9], ['Li', 10, 36], ['O', 37, 90], ['Co', 91, 99], ['Ni2', 100, 108]]
+[['Ni1', ['-1-s', '-2-p', '-3-d']], ['Li', ['-1-s', '-2-p']], ['O', ['-1-s', '-2-p']], ['Co', ['-1-s', '-2-p', '-3-d']], ['Ni2', ['-1-s', '-2-p', '-3-d']]]
+['(1)-1-s', '(2)-1-s', '(9)-1-s', '(10)-1-s', '(11)-1-s', '(1-4)-2-p', '(1-9)-2-p', '(91-99)-tot', '(1)-tot', '(2)-tot', '(3)-tot']
+(1)-1-s 4 5
+(2)-1-s 4 5
+(9)-1-s 4 5
+(10)-1-s 4 5
+(11)-1-s 4 5
+(1-4)-2-p 2 9
+(1-9)-2-p 2 9
+(91-99)-tot 2 3
+(1)-tot 2 3
+(2)-tot 2 3
+(3)-tot 2 3
+###read! (1-9)-2-p PDOS_OF_INDEX_3 2 Ni1-2-p
+###read! (1)-1-s PDOS_OF_INDEX_6 4 (1)-1-s
+###read! (2)-1-s PDOS_OF_INDEX_7 4 (2)-1-s
+###read! (9)-1-s PDOS_OF_INDEX_20 4 (9)-1-s
+###read! (10)-1-s PDOS_OF_INDEX_21 4 (10)-1-s
+###read! (11)-1-s PDOS_OF_INDEX_22 4 (11)-1-s
+###read! (91-99)-tot PDOS_OF_INDEX_24 2 Co-tot
+###read! (1-4)-2-p PDOS_OF_INDEX_25 2 (1-4)-2-p
+###read! (1)-tot PDOS_OF_INDEX_26 2 (1)-'tot'
+###read! (2)-tot PDOS_OF_INDEX_27 2 (2)-'tot'
+###read! (3)-tot PDOS_OF_INDEX_28 2 (3)-'tot'
+**********************************************************************************************************************************
+
+#######readvalence.py {dirname}
+在replace.py 计算完badercharge之后，进入dir中，运行bader Bader_{dirname}.cube
+然后python readvalence.py {dirname}即可显示原子上面的charge，第二列是现有charge，第三列是电离失去/得到charge
+
+
+#######read_lowdin.py {str_name} mode 
+用于读取out_pdos中的lowdin charge，并且产生Lowdin_of_{str_name}.txt
+
+
+#######get_surrounding_by_elements_multi.py: 调用“clustering-xsf.py”
+有以下几个参数可以调节：
+2.1.修改需要查看的元素周围的最近邻元素种类以及他们的化学环境：[['元素1','元素1最近邻元素']，['元素2','元素2最近邻元素']，['其他元素','其他元素最近邻元素']，]
+surround_specified=[['Li','TM'],['O','tot'],['default','Li']]
+
+2.2.
+str_in='LiNiO2_331_NCMT_3132' #结构名称
+df_dir='C:/Users/xiety/Desktop/dataframe/' #缓存数据的文件名称，在QE-batch里面应该是'data.save'
+str_dir='C:/Users/xiety/Desktop/dataframe/'  #xsf格式的来源，在QE-batch里面应该是f'{str_in}/'
+script_dir='D:\\乱七八糟\\QE\\scripts\\window_py_脚本\\寻找Li-Ni化学位点并自动替换\\' #clustering-xsf.py脚本所在位置，在QE-batch里面应该是sys.path[0]
+
+产生f"SURROUNDING_ATOMS_of_{str_name}.txt"文件，格式如下：
+8-Ni#5:['16-Li#3', '15-Li#4', '18-Li#5', '27-Li#9', '23-Li#3', '24-Li#1']
+9-Ni#4:['17-Li#4', '12-Li#3', '25-Li#8', '26-Li#6', '20-Li#7', '11-Li#2']
+10-Li#1:['105-Ti#2', '108-Ti#2', '4-Ni#3', '7-Ni#3', '99-Mn#1', '102-Mn#1']
+11-Li#2:['97-Mn#1', '108-Ti#2', '100-Mn#3', '4-Ni#3', '9-Ni#4', '106-Ti#3']
+
+也会产生一个f"{df_dir}/{str_in}_cluster_data.pkl"文件用于储存分类的数据，分类的数据可以通过以下方式读取到spe_df这个字典中：
+if os.path.isfile(f"{df_dir}/{str_in}_cluster_data.pkl"):
+    #print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    loaded_data={}
+    with open(f"{df_dir}/{str_in}_cluster_data.pkl", "rb") as file:
+        loaded_data = pickle.load(file)
+    spe_df=loaded_data['spe_df']
+WARNING！！！
+WARNING！！！
+WARNING！！！该脚本目前不能用于读取不带磁矩的体系,除非clustering-xsf.py的数据分类方式改变！！！
+
+
+#######separate_sur_atom_info.py {str_name}和separate_sur_atom_info_lst.py {str_name} 分别用于统计get_surrounding_by_elements_multi.py产生的数据，得到所有元素中最近邻的元素个数以及他们的环境类型，储存在Separate_Surrouding_of_{str_name}.txt和Separate_Surrouding_List_of_{str_name}.txt文件中
+！！！注意其中的O元素只会被统计一次
+
+#######search_data.py {str_name} "{11-20,Ni}" ”properties1+properties2+...“
+在{str_name}下查找11-20,Ni的“properties1，properties2，...”信息，并且print出来
+
+#######extractor.sh A：去读取目录A下面的A_1_2,A_1_3等目录下面的out_relax_A_1_2,in_relax_A_1_2,*.UPF,xty_test以及QE-batch整个目录到A-extractor里面（还有A_1_2.vasp也会被读取)
+
+#######atomic_info_extractor.py {str_name}会生成： 八面体体积；八面体因子OF；平均角度畸变；畸变因子DI 数据到ATOMIC_INFO_of_{str_in}.txt文件里面
+
+#######search_multi_dupli_data.py：search_data.py的衍生版本，除了会计算重复的原子信息之外，还会把输入的带*的性质（如果不在available的props里面）依旧会返回值， 不过值都是0，若是带*的性质（如果在available的props里面），那就正常返回值
+
+#######exchange_E_extractor.py {str_name} “props1+props2” 在当前目录下寻找{str_name}-exhange_file-extractor,并且读取{str_name}-exhange_file-extractor/{str_name}_Li2_Ni3这类文件夹（互换了2号Li和3号Ni）的能量，并把对应的原子的props抠出来，注意，这里的props除了调用search_multi_dupli_data.py进行搜索（也就意味着你可以加上*返回0的default值），还可以使用props:Li来获取独特元素的props，如果不加：则默认两种元素的props都有
+
+#######Delta_E-app.py，基于exchange_E_extractor.py的UI交互界面，也拥有spearman和pearson系数计算功能。
+
+#######sorted.py {file_name} {column} 可以实现排序
+
+#######batch_command.py {command} “{judge_file}” 用于批量跑a.py {str_name} 格式的脚本，command就是a.py， judge_file就是生成的文件，其中str_name用*替代
+
+#######create_time_schedule.py {target_dir} mode 可以在{target_dir}下创建time_schedule.py并且把当前目录的SPIN,in_relax以及QE-batch，DFT-U都copy到计算目录下， 和batch_command.py create_exchange_str.py 1结合使用很舒服
+
+#######create_exchange_str.py {str_name} 可以创建交换Li-Ni的目录batch_command.py create_exchange_str.py 1可以批量创建
+
+#######loop_schedule.py : time_schedule 的自定义版本，可以定义loop次数和loop间隔时间，一旦到了loop次数就不会计算当前目录下的计算了，并且会统计完成的计算和未完成的计算，主要为了防止有些结构过于夸张不收敛而浪费计算机时间。
+
+#######read_bader.py,继承来自APP的bader计算
+
+
+#######job_on_hpc_id.py 返回job的值
+
+
+#######judge_scf_conv.py 目录/{str_name} {mode} 用来查看目标out_{mode}_{str_name}中scf收敛情况，如果最近的几次收敛都达到了最大收敛步数，则会把mixing_beta改成原来的0.8，默认0.7
+
+
+#######judge_relax_conv.py 目录/{str_name} 用来查看目标out_{mode}_{str_name}中relax能量收敛情况，如果发现收敛震荡，则会把trust_radius_max改成原来的0.5,默认0.8
+与此同时，可以judge_relax_conv.py 目录/{str_name} 12来查看目录/{str_name}/out_{mode}_{str_name}.12个文件，
+也可以judge_relax_conv.py 目录/{str_name} 12 14来查看前14步收敛情况（画图），如果是画现在output的图，那就：
+judge_relax_conv.py 目录/{str_name} 0 14
+注意，只有当第二个参数不存在或者是0的时候，才会修改trust_radius_max。
+
+#######check_vc.py 用来检查当前目录下vc-relax是否收敛并且续算，stress_shr是最后一步relax的应力大小收敛阈值
+  注意该脚本只作续算不作重新算，否则修改一下逻辑
+  
+#######qdel_all.py可以查看当前目录下哪些在运算，qdel_all.py 1可以取消运算的任务（选择性）
+
+
+#######qein2car.py {input_file} xsf/vasp 输出.xsf格式或者vasp格式
+
+
+#######vasp2qein.py {a.vasp} 把vasp文件输出成QE输入格式
+
+#######octahedral_distortion_local.py 用于提取新的local性质，仅限锂镍混排，周围的元素只统计了[Ti,Mn,Co,Ni,Al,Mg,Zr] 20231206
+
+#######python qe_mdout2MOVEMENT {input_file} {output_file} 把qe的output文件转化成MOVEMENT 20231228
+
+
+#######create_job_script.py：生成脚本专用文件，首次应用argparse库，   20240320
+	可以用python create_job_script.py --help查看参数
+	可以用python create_job_script.py {file_name} {mode} 生成合适的job 文件
+	可以用python create_job_script.py {file_name} {mode} -c 不生成job文件但是返回作业调度系统信息（pbs/slurm)
+	
+#######check_vc_continue_cal.py {str_name}        20240324
+可以把str_name目录下的out_relax文件合理的改名字为out_history_relax文件，（使得）check_vc.py可以继续计算改目录下的文件
+
+#######qe_out2RELAXLOG.py 20240325
+读取qe输出文件为多个格式在当前目录下
+>>>python qe_out2RELAXLOG.py {input} {output} {output_type} {optional:specific step} {optional:-a, -a means output all}
+	Read QE relax/vc-relax output and convert specific step into xsf/vasp/qein format or all step into xsf format
+
+	positional arguments:
+	  input_file     input filename
+	  output_file    output filename
+	  output_type    xsf/vasp/qein
+	  specific_step  Optional,specific relax step,default is -1
+
+	options:
+	  -h, --help     show this help message and exit
+	  --all, -a      output all files into .xsf file and can be visualize as gif in OVITO
+	  
+#######process_original_str.py  可以执行check_vc.py计算完之后的所有步骤，把batch_command.py集成到了内部，直到创建exchange_dir下loop_schedule.py为止    20240407
+
+
+#######create_loop_schedule.py {dir} {mode}         20240407
+这个不多说了，create_time_schedule.py的变种版本        
+
+#######qe_out_reader_gnn.py {str_name} {xsf/xsf_std/vasp/qein} {-n}      20240407
+qe-batch专属的结构读取，但是是qe_out2RELAXLOG.py的阉割版本，不能读取具体步骤，加'-n'参数不会在当前目录生成输出文件，只在目标目录{str_name}下生成，否则不加则会在当前目录和目标目录{str_name}下同时生成
+
+#######vasp2xsf.py {str_name}.vasp 在当前目录下生成一个.xsf文件      20240407
+
+
+#######create_gnn_database.py      20240407
+创建gnn_data.save
+有三部分内容可以生成：
+extract_energy=0  #生成Calculated_result_info.data，包含：str_name	Li	Ni	delta_E	original_E	variance_E，储存计算前后的能量信息
+extract_xsf_file=0 #生成calculated_xsf_str_original calculated_xsf_str_variance  xsf_str_original xsf_str_variance四个目录，来储存计算前后的机构信息
+creating_gnn_graph=1 #生成wholegraphs_52d_features.db储存整个图信息，包含如下内容：
+
+  节点：
+    # 特征向量的维度说明：
+    # - 独热编码：10维（对应10种元素）
+    # - 浓度：10维
+
+    # - 电负性：1维
+    # - 原子半径：1维
+    # - 离子化能：1维
+    # - 原子质量：1维
+    # - 熔点：1维
+    # - 密度：1维
+    # - 热导率：1维
+
+    #####not used down###
+    ##### - bader价态：1维
+    ##### - lowdin价态：1维
+    ##### - 磁矩：1维
+    #####not used up####
+
+    # - 晶格-优化前：9维
+    # - 坐标-优化前：3维
+    # - 晶格-优化后：9维
+    # - 坐标-优化后：3维
+
+    # - 结构名称：1维
+    # 总共：52维
+   边：
+    #连接关系
+    #能量信息
+    #结构信息
+
+
+#######read_graphs.py 读取wholegraphs_52d_features.db生成subgraphs_k_neighbor_{n}_gnn_52d_feature_predict.db的子图信息  20240407
+
+#######train_gat_coords_edge_2.py 读取数据库进行图神经网络计算。        20240407
+
+#######extract_exchange_str_from_db.py {str_name} {liindex_niindex} {vasp/xsf/xsf_std} {-o} {-p} 20240408
+会从 gnn_data.save/wholegraphs_53d_features.db的图中读取坐标和晶格信息生成相应的结构和互换后的结构   
+其中liindex和niindex不一定得对应，你输入14-39和39-14都会正确识别哪个是Li哪个是Ni
+-o生成original格式的结构，互换前的结构
+-p生成perfect结构，即优化前的结构
+都加则生成4个，互换前优化后，互换前优化前，互换后优化前，互换后优化后
+
+#######database_gnn_merge.py {dir1} {dir2} {...} 可以把无数个目录下的 calculated_xsf_str_original  calculated_xsf_str_variance  xsf_str_original  xsf_str_variance中的文件都复制到当前目录下的gnn_data.save下(没有则会创建)，并且合并无数个目录下的Calculated_result_info.data。 20240407
+
+
+#######bcon.py：替换老郑bcon.sh的功能 20240409
+
+#######extract_subgraph_from_db.py 20240410
+从子图的.db文件中获取子图的结构或者子图的png,html清晰表达的图信息
+usage: extract_subgraph_from_db.py [-h] [--perfect] [--fig] graph_ind {xsf,xsf_std,vasp} [{2,3,4,5}]
+
+Swap Li-Ni pairs in crystal structures.
+
+positional arguments:
+  graph_ind           The name of the graph structure to retrieve.
+  {xsf,xsf_std,vasp}  The format of the output structure.
+  {2,3,4,5}           The K-th nearest neighbor,default 2.
+
+options:
+  -h, --help          show this help message and exit
+  --perfect, -p       Output the perfect (pre-optimization) structure.
+  --fig, -f           Output the subgraph figures.
+
+#######check_exchange_dir exchange_dir 20240410
+用来检查目录目录下是不是有xxx-exhange_file目录没有生成
+新增库：
+
+#######predict_gat_coords_edge_3_manual.py -m [models(无数个)] [-f] 用无数个models来预测结果，-f代表输出图片  20240415
